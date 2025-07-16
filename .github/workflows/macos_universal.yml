@@ -1,4 +1,4 @@
-name: macOS Universal Build with python-build
+name: macOS Universal Build
 on:
   workflow_dispatch:
   push:
@@ -22,59 +22,44 @@ jobs:
       - name: Install system dependencies
         run: |
           brew update
-          brew install openssl@3 libffi pkg-config make zlib sqlite python-build
+          brew install openssl@3 libffi pkg-config make zlib sqlite
           echo "LDFLAGS=-L$(brew --prefix openssl@3)/lib -L$(brew --prefix libffi)/lib -L$(brew --prefix zlib)/lib" >> $GITHUB_ENV
           echo "CPPFLAGS=-I$(brew --prefix openssl@3)/include -I$(brew --prefix libffi)/include -I$(brew --prefix zlib)/include" >> $GITHUB_ENV
           echo "PKG_CONFIG_PATH=$(brew --prefix openssl@3)/lib/pkgconfig:$(brew --prefix libffi)/lib/pkgconfig" >> $GITHUB_ENV
 
-      - name: Install Python (${{ matrix.arch }})
+      - name: Set up Python (${{ matrix.arch }})
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          architecture: ${{ matrix.arch }}
+
+      - name: Install Python dependencies
         run: |
           # 清理环境变量
           unset PYTHONPATH
           unset PYTHONHOME
 
-          # 设置编译参数
+          # 根据架构运行命令
           if [ "${{ matrix.arch }}" = "x86_64" ]; then
-            # 原生编译 x86_64
-            export CC="clang"
-            export CXX="clang++"
-            export CFLAGS="-arch x86_64"
-            export LDFLAGS="-arch x86_64"
-            python-build --verbose ${{ env.PYTHON_VERSION }} $HOME/python-${{ matrix.arch }} --enable-shared
-            echo "PATH=$HOME/python-${{ matrix.arch }}/bin:$PATH" >> $GITHUB_ENV
+            ARCH_RUN="arch -x86_64"
           else
-            # 为交叉编译 arm64 安装本机 x86_64 Python
-            export CC="clang"
-            export CXX="clang++"
-            export CFLAGS="-arch x86_64"
-            export LDFLAGS="-arch x86_64"
-            python-build --verbose ${{ env.PYTHON_VERSION }} $HOME/python-x86_64 --enable-shared
-            BUILD_PYTHON_PATH="$HOME/python-x86_64/bin/python3"
-
-            # 交叉编译 arm64
-            export CFLAGS="-arch arm64"
-            export LDFLAGS="-arch arm64"
-            python-build --verbose ${{ env.PYTHON_VERSION }} $HOME/python-${{ matrix.arch }} \
-              --enable-shared \
-              --host=aarch64-apple-darwin \
-              --build=x86_64-apple-darwin \
-              --with-build-python=$BUILD_PYTHON_PATH
-            echo "PATH=$HOME/python-${{ matrix.arch }}/bin:$PATH" >> $GITHUB_ENV
+            ARCH_RUN=""
           fi
 
           # 验证 Python 架构
-          python3 -c "import platform; print('当前Python架构:', platform.machine())"
-          if [ "${{ matrix.arch }}" = "x86_64" ] && ! python3 -c "import platform; print(platform.machine())" | grep -q "x86_64"; then
+          $ARCH_RUN python3 -c "import platform; print('当前Python架构:', platform.machine())"
+          if [ "${{ matrix.arch }}" = "x86_64" ] && ! $ARCH_RUN python3 -c "import platform; print(platform.machine())" | grep -q "x86_64"; then
             echo "错误: Python不是x86_64架构!"
             exit 1
-          elif [ "${{ matrix.arch }}" = "arm64" ] && ! python3 -c "import platform; print(platform.machine())" | grep -q "arm64"; then
+          elif [ "${{ matrix.arch }}" = "arm64" ] && ! $ARCH_RUN python3 -c "import platform; print(platform.machine())" | grep -q "arm64"; then
             echo "错误: Python不是arm64架构!"
             exit 1
           fi
 
-          python3 -m pip install --upgrade pip
-          pip install uv --no-cache-dir
-          uv venv .venv --python=$HOME/python-${{ matrix.arch }}/bin/python3
+          # 安装依赖
+          $ARCH_RUN python3 -m pip install --upgrade pip
+          $ARCH_RUN pip install uv --no-cache-dir
+          $ARCH_RUN uv venv .venv --python=$($ARCH_RUN which python3)
           source .venv/bin/activate
           uv pip install --no-cache-dir -r requirements.txt pyinstaller
 
@@ -82,7 +67,14 @@ jobs:
         run: |
           source .venv/bin/activate
 
-          pyinstaller -F -n start_macos_${{ matrix.arch }} \
+          # 根据架构运行 PyInstaller
+          if [ "${{ matrix.arch }}" = "x86_64" ]; then
+            ARCH_RUN="arch -x86_64"
+          else
+            ARCH_RUN=""
+          fi
+
+          $ARCH_RUN pyinstaller -F -n start_macos_${{ matrix.arch }} \
             --paths=./sdk \
             --hidden-import='pkg_resources' \
             main.py
