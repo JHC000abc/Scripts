@@ -14,7 +14,7 @@ jobs:
       matrix:
         arch: [x86_64, arm64]
     env:
-      PYTHON_VERSION: "3.11.8"  # 推荐使用最新稳定版，如 3.12.x
+      PYTHON_VERSION: "3.12.3"  # 改为官方支持的版本
 
     steps:
       - uses: actions/checkout@v4
@@ -24,20 +24,21 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           architecture: ${{ matrix.arch }}
-          cache: 'uv'  # 启用缓存加速
+          cache: 'uv'
 
       - name: Install system dependencies
         run: |
           brew update
-          brew install openssl@3 libffi  # 改用 openssl@3（官方推荐）
+          brew install openssl@3 libffi pkg-config
           echo "LDFLAGS=-L$(brew --prefix openssl@3)/lib -L$(brew --prefix libffi)/lib" >> $GITHUB_ENV
           echo "CPPFLAGS=-I$(brew --prefix openssl@3)/include -I$(brew --prefix libffi)/include" >> $GITHUB_ENV
+          echo "PKG_CONFIG_PATH=$(brew --prefix openssl@3)/lib/pkgconfig" >> $GITHUB_ENV
 
-      - name: Setup UV environment
+      - name: Setup build environment
         run: |
           python -m pip install --upgrade pip
-          pip install uv
-          uv venv .venv
+          pip install uv --no-cache-dir
+          uv venv .venv --python=${{ env.PYTHON_VERSION }}
           source .venv/bin/activate
           uv pip install --no-cache-dir -r requirements.txt pyinstaller
 
@@ -46,12 +47,12 @@ jobs:
           source .venv/bin/activate
           pyinstaller -F -n start_macos_${{ matrix.arch }} \
             --paths=./sdk \
-            --hidden-import='pkg_resources' \  # 解决常见打包问题
+            --hidden-import='pkg_resources' \
+            --add-data="sdk/.env:." \
             main.py
           
-          # 验证二进制架构
           file dist/start_macos_${{ matrix.arch }}
-          lipo -archs dist/start_macos_${{ matrix.arch }} || true  # 避免单架构检查失败
+          lipo -archs dist/start_macos_${{ matrix.arch }} || true
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
@@ -60,7 +61,7 @@ jobs:
           path: |
             dist/start_macos_${{ matrix.arch }}
             sdk/.env
-          retention-days: 3  # 设置临时文件过期时间
+          retention-days: 3
 
   create_universal:
     needs: build
@@ -70,6 +71,8 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: artifacts
+          pattern: macos-*-build
+          merge-multiple: true
 
       - name: Create Universal Binary
         run: |
@@ -80,7 +83,7 @@ jobs:
           
           mkdir -p dist
           mv start_macos_universal dist/
-          chmod +x dist/start_macos_universal  # 确保可执行权限
+          chmod +x dist/start_macos_universal
           cp artifacts/macos-x86_64-build/.env dist/
           zip -r macos_universal.zip dist/
 
@@ -91,20 +94,20 @@ jobs:
           path: macos_universal.zip
 
       - name: Create Release
-        if: github.ref == 'refs/heads/main'  # 仅 main 分支触发发布
+        if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v1
         with:
           files: macos_universal.zip
-          tag_name: v$(date +%Y.%m.%d)  # 自动日期版本号
+          tag_name: v$(date +%Y.%m.%d)
           name: Universal macOS Build ($(date +%Y-%m-%d))
           body: |
-            ### 支持架构
+            ### Supported Architectures
             - Intel (x86_64)
             - Apple Silicon (arm64)
-            - Universal 2 (合并二进制)
+            - Universal 2
             
-            ### 构建信息
+            ### Build Info
             - Python: ${{ env.PYTHON_VERSION }}
-            - 构建时间: $(date -u)
+            - Build Date: $(date -u)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
