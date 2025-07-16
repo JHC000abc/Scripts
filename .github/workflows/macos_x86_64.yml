@@ -82,19 +82,19 @@ jobs:
         run: |
           cp sdk/.env dist/
           # 创建 ZIP 包
-          zip -r macos.zip dist/
+          zip -r macos_x86_64.zip dist/
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: macos-x86_64-build
-          path: macos.zip
+          path: macos_x86_64.zip
 
       - name: Create Release and Upload Assets
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            macos.zip
+            macos_x86_64.zip
           tag_name: v1.0.0
           name: Release v1.0.0
         env:
