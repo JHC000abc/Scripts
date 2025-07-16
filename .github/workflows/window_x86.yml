@@ -1,0 +1,75 @@
+name: Windows x86 Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+    paths:
+      - '.github/workflows/windows-x86.yml'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.9.9 (x86)
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9.9'
+          architecture: 'x86'  # Changed to x86 for 32-bit support
+
+      - name: Install system dependencies
+        run: |
+          # Install VC++ runtime for x86
+          choco install -y vcredist2015
+          # Verify installation
+          echo "Current System Python path: $(which python)"
+          echo "Current System Python version: $(python --version)"
+          echo "Current System pip version: $(pip --version)"
+          
+          pip install --no-cache-dir uv
+          uv venv --python=3.9.9
+          .\.venv\Scripts\activate
+          
+          echo "Current Python path: $(which python)"
+          echo "Current Python version: $(python --version)"
+          echo "Current pip version: $(pip --version)"
+          
+          uv pip install --no-cache-dir -r requirements.txt
+          pyinstaller -F -n start_windows_x86 --paths=./sdk main.py
+          copy sdk\.env dist\
+
+      - name: Create verified zip
+        shell: pwsh
+        run: |
+          $zipPath = "${{ github.workspace }}\windows-x86.zip"
+          $files = @(
+            "${{ github.workspace }}\dist\start_windows_x86.exe",
+            "${{ github.workspace }}\dist\.env"
+          )
+          Compress-Archive -Path $files -DestinationPath $zipPath -Force
+          Write-Output "zip_path=$zipPath" >> $env:GITHUB_ENV
+
+      - name: Upload verified zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-x86-build
+          path: |
+            windows-x86.zip
+
+      - name: Create Release and Upload Assets
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            windows-x86.zip
+          tag_name: v1.0.0-x86
+          name: Release v1.0.0 (x86)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create summary
+        run: |
+          echo "### Build Successful" >> $GITHUB_STEP_SUMMARY
+          echo "- Python version: $(python --version)" >> $GITHUB_STEP_SUMMARY
+          echo "- Windows 7+ compatible x86 build" >> $GITHUB_STEP_SUMMARY
