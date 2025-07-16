@@ -101,13 +101,6 @@ jobs:
             echo "Error: Required binary files missing!"
             exit 1
           fi
-          
-          # 检查.env文件是否存在（只需要在一个架构中存在）
-          if [ ! -f "artifacts/macos-x86_64-build/.env" ] && 
-             [ ! -f "artifacts/macos-arm64-build/.env" ]; then
-            echo "Error: .env file missing from both architectures!"
-            exit 1
-          fi
 
       - name: Create Universal Binary
         run: |
@@ -118,9 +111,7 @@ jobs:
             artifacts/macos-x86_64-build/start_macos_x86_64 \
             artifacts/macos-arm64-build/start_macos_arm64 \
             -output dist/start_macos_universal
-          
-          # 复制环境文件
-          cp artifacts/macos-x86_64-build/.env dist/
+        
           
           # 验证结果
           file dist/start_macos_universal
