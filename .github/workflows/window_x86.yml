@@ -45,7 +45,7 @@ jobs:
       - name: Create verified zip
         shell: pwsh
         run: |
-          $zipPath = "${{ github.workspace }}\windows-x86.zip"
+          $zipPath = "${{ github.workspace }}\windows_x86.zip"
           $files = @(
             "${{ github.workspace }}\dist\start_windows_x86.exe",
             "${{ github.workspace }}\dist\.env"
@@ -58,15 +58,15 @@ jobs:
         with:
           name: windows-x86-build
           path: |
-            windows-x86.zip
+            windows_x86.zip
 
       - name: Create Release and Upload Assets
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            windows-x86.zip
-          tag_name: v1.0.0-x86
-          name: Release v1.0.0 (x86)
+            windows_x86.zip
+          tag_name: v1.0.0
+          name: Release v1.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
