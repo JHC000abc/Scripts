@@ -40,6 +40,14 @@ jobs:
           pyenv install ${{ env.PYTHON_VERSION }} --verbose
           pyenv global ${{ env.PYTHON_VERSION }}
           echo "PATH=$HOME/.pyenv/shims:$PATH" >> $GITHUB_ENV
+          
+          python -m pip install --upgrade pip
+          pip install uv --no-cache-dir
+          uv venv .venv --python=${{ env.PYTHON_VERSION }}
+          source .venv/bin/activate
+          uv pip install --no-cache-dir -r requirements.txt pyinstaller
+          
+          
 
       - name: Build Executable (${{ matrix.arch }})
         run: |
