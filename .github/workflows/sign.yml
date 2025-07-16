@@ -13,4 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: run scripts
-        run: cd scripts &&./sign_jd >> sign.log 2>&1
+        shell: bash -l {0}
+        run: |
+          cd scripts &&./sign_jd >> sign.log 2>&1
+          cat sign.log
