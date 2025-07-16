@@ -82,7 +82,7 @@ jobs:
 
       - name: Prepare artifacts
         run: |
-#          cp sdk/.env dist/
+          cp sdk/.env dist/
           # 创建 ZIP 包
           zip -r macos.zip dist/
 
