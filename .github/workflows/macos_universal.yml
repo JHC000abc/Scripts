@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    runs-on: macos-12
+    runs-on: macos-13 # 切换到 macOS 13
     timeout-minutes: 30
     strategy:
       matrix:
@@ -19,35 +19,50 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: 检查运行器环境
+        run: |
+          sw_vers
+          uname -m
+          xcodebuild -version
+          df -h
+          free -m || vm_stat
+
+      - name: 检查网络连接
+        run: |
+          ping -c 4 github.com
+          curl -I https://pypi.org
+
       - name: Install system dependencies
         run: |
-          brew update
-          brew install openssl@3 libffi pkg-config make zlib sqlite
+          timeout 10m brew install openssl@3 libffi pkg-config make zlib sqlite
           echo "LDFLAGS=-L$(brew --prefix openssl@3)/lib -L$(brew --prefix libffi)/lib -L$(brew --prefix zlib)/lib" >> $GITHUB_ENV
           echo "CPPFLAGS=-I$(brew --prefix openssl@3)/include -I$(brew --prefix libffi)/include -I$(brew --prefix zlib)/include" >> $GITHUB_ENV
           echo "PKG_CONFIG_PATH=$(brew --prefix openssl@3)/lib/pkgconfig:$(brew --prefix libffi)/lib/pkgconfig" >> $GITHUB_ENV
 
+      - name: 手动安装 Python 3.12.7 (x86_64)
+        if: matrix.arch == 'x86_64'
+        run: |
+          curl -L -o python-3.12.7-darwin-x64.tar.gz https://github.com/actions/python-versions/releases/download/3.12.7-17391332627/python-3.12.7-darwin-x64.tar.gz
+          tar -xzf python-3.12.7-darwin-x64.tar.gz -C $HOME/python-3.12.7-x86_64
+          echo "$HOME/python-3.12.7-x86_64/bin" >> $GITHUB_PATH
+
       - name: Set up Python (${{ matrix.arch }})
-        uses: actions/setup-python@v5
+        if: matrix.arch != 'x86_64'
+        uses: actions/setup-python@v5.2.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           architecture: ${{ matrix.arch }}
-          cache: 'none' # 禁用缓存以强制下载
+          cache: 'none'
 
       - name: Install Python dependencies
         run: |
-          # 清理环境变量
           unset PYTHONPATH
           unset PYTHONHOME
-
-          # 根据架构运行命令
           if [ "${{ matrix.arch }}" = "x86_64" ]; then
             ARCH_RUN="arch -x86_64"
           else
             ARCH_RUN=""
           fi
-
-          # 验证 Python 架构
           $ARCH_RUN python3 -c "import platform; print('当前Python架构:', platform.machine())"
           if [ "${{ matrix.arch }}" = "x86_64" ] && ! $ARCH_RUN python3 -c "import platform; print(platform.machine())" | grep -q "x86_64"; then
             echo "错误: Python不是x86_64架构!"
@@ -56,31 +71,24 @@ jobs:
             echo "错误: Python不是arm64架构!"
             exit 1
           fi
-
-          # 安装依赖
-          $ARCH_RUN python3 -m pip install --upgrade pip
-          $ARCH_RUN pip install uv --no-cache-dir
-          $ARCH_RUN uv venv .venv --python=$($ARCH_RUN which python3)
+          timeout 5m $ARCH_RUN python3 -m pip install --upgrade pip
+          timeout 5m $ARCH_RUN pip install uv --no-cache-dir
+          timeout 5m $ARCH_RUN uv venv .venv --python=$($ARCH_RUN which python3)
           source .venv/bin/activate
-          uv pip install --no-cache-dir -r requirements.txt pyinstaller
+          timeout 10m uv pip install --no-cache-dir -r requirements.txt pyinstaller
 
       - name: Build Executable (${{ matrix.arch }})
         run: |
           source .venv/bin/activate
-
-          # 根据架构运行 PyInstaller
           if [ "${{ matrix.arch }}" = "x86_64" ]; then
             ARCH_RUN="arch -x86_64"
           else
             ARCH_RUN=""
           fi
-
-          $ARCH_RUN pyinstaller -F -n start_macos_${{ matrix.arch }} \
+          timeout 15m $ARCH_RUN pyinstaller -F -n start_macos_${{ matrix.arch }} \
             --paths=./sdk \
             --hidden-import='pkg_resources' \
             main.py
-
-          # 严格检查二进制架构
           file "dist/start_macos_${{ matrix.arch }}"
           if [ "${{ matrix.arch }}" = "x86_64" ] && ! file "dist/start_macos_${{ matrix.arch }}" | grep -q "x86_64"; then
             echo "错误: 二进制不是x86_64架构!"
@@ -105,7 +113,7 @@ jobs:
 
   create_universal:
     needs: build
-    runs-on: macos-latest
+    runs-on: macos-13
     steps:
       - name: Download Artifacts
         uses: actions/download-artifact@v4
@@ -118,13 +126,10 @@ jobs:
         run: |
           echo "Artifacts目录结构:"
           find artifacts -type f
-          
-          # 检查二进制文件架构
           echo "x86_64二进制架构:"
           file "artifacts/macos-x86_64-build/start_macos_x86_64"
           echo "arm64二进制架构:"
           file "artifacts/macos-arm64-build/start_macos_arm64"
-          
           if [ ! -f "artifacts/macos-x86_64-build/start_macos_x86_64" ] || 
              [ ! -f "artifacts/macos-arm64-build/start_macos_arm64" ]; then
             echo "错误: 缺少必要的二进制文件!"
@@ -134,28 +139,19 @@ jobs:
       - name: Create Universal Binary
         run: |
           mkdir -p dist
-
-          # 合并二进制
           lipo -create \
             artifacts/macos-x86_64-build/start_macos_x86_64 \
             artifacts/macos-arm64-build/start_macos_arm64 \
             -output dist/start_macos_universal
-
-          # 复制环境文件
           cp artifacts/macos-x86_64-build/.env dist/
-
-          # 验证通用二进制
           echo "通用二进制架构:"
           file dist/start_macos_universal
           lipo -archs dist/start_macos_universal
-          
           if ! lipo -archs dist/start_macos_universal | grep -q "x86_64" || 
              ! lipo -archs dist/start_macos_universal | grep -q "arm64"; then
             echo "错误: 通用二进制缺少架构!"
             exit 1
           fi
-
-          # 打包
           cd dist && zip -r ../macos_universal.zip ./*
 
       - name: Upload Universal Artifact
@@ -176,7 +172,6 @@ jobs:
             - Intel (x86_64)
             - Apple Silicon (arm64)
             - Universal 2
-            
             ### 构建信息
             - Python版本: ${{ env.PYTHON_VERSION }}
             - 构建日期: $(date -u)
