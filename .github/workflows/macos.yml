@@ -9,9 +9,6 @@ on:
 jobs:
   build:
     runs-on: macos-13
-    strategy:
-      matrix:
-        node-version: [ 12.x ]
     env:
       TZ: Asia/Shanghai
       PYTHON_VERSION: "3.9.13"
