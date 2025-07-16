@@ -36,8 +36,7 @@ jobs:
           echo "Current Python version: $(python --version)"
           echo "Current pip version: $(pip --version)"
           
-          uv pip install --no-cache-dir -r requirements.txt --no-deps pandas
-          uv pip install --no-cache-dir pandas==2.0.3
+          uv pip install --no-cache-dir -r requirements.txt
           uv pip install --no-cache-dir pyinstaller
           pyinstaller -F -n start_windows_x86 --paths=./sdk main.py
           copy sdk\.env dist\
