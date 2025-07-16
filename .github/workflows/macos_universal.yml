@@ -29,20 +29,27 @@ jobs:
 
       - name: Install Python (${{ matrix.arch }})
         run: |
+          # 清理可能干扰的环境变量
+          unset PYTHONPATH
+          unset PYTHONHOME
+
           if [ "${{ matrix.arch }}" = "x86_64" ]; then
             export CC="clang -arch x86_64"
             export CXX="clang++ -arch x86_64"
-            export ARCH_FLAGS="-arch x86_64"
+            export CFLAGS="-arch x86_64"
+            export LDFLAGS="-arch x86_64"
           else
             export CC="clang -arch arm64"
             export CXX="clang++ -arch arm64"
-            export ARCH_FLAGS="-arch arm64"
+            export CFLAGS="-arch arm64"
+            export LDFLAGS="-arch arm64"
           fi
 
-          # 确保 pyenv 使用正确的架构编译 Python
-          export PYTHON_CONFIGURE_OPTS="--enable-shared $ARCH_FLAGS"
+          # 设置 Python 编译选项（不要包含 -arch）
+          export PYTHON_CONFIGURE_OPTS="--enable-shared"
 
-          pyenv install ${{ env.PYTHON_VERSION }} --verbose
+          # 强制重新编译
+          pyenv install ${{ env.PYTHON_VERSION }} --verbose --force
           pyenv global ${{ env.PYTHON_VERSION }}
           echo "PATH=$HOME/.pyenv/shims:$PATH" >> $GITHUB_ENV
 
