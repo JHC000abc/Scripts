@@ -32,6 +32,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           architecture: ${{ matrix.arch }}
+          cache: 'none' # 禁用缓存以强制下载
 
       - name: Install Python dependencies
         run: |
