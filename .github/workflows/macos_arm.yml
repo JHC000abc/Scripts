@@ -1,4 +1,4 @@
-name: macOS ARM
+name: macOS ARM Build
 on:
   workflow_dispatch:
   push:

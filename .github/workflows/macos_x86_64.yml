@@ -1,10 +1,10 @@
-name: macOS
+name: macOS x86_64 Build
 on:
   workflow_dispatch:
   push:
     branches: [main, master]
     paths:
-      - '.github/workflows/macos.yml'
+      - '.github/workflows/macos_x86_64.yml'
 
 jobs:
   build:
