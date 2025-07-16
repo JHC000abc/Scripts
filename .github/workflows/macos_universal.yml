@@ -80,18 +80,10 @@ jobs:
       - name: Build Executable (${{ matrix.arch }})
         run: |
           source .venv/bin/activate
-          
-          # 设置PyInstaller架构参数
-          if [ "${{ matrix.arch }}" = "x86_64" ]; then
-            export PYINSTALLER_ARCH="-arch x86_64"
-          else
-            export PYINSTALLER_ARCH="-arch arm64"
-          fi
 
           pyinstaller -F -n start_macos_${{ matrix.arch }} \
             --paths=./sdk \
             --hidden-import='pkg_resources' \
-            $PYINSTALLER_ARCH \
             main.py
 
           # 严格检查二进制架构
