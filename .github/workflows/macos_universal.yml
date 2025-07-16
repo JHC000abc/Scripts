@@ -34,20 +34,23 @@ jobs:
             export CXX="clang++ -arch x86_64"
             export ARCH_FLAGS="-arch x86_64"
           else
+            export CC="clang -arch arm64"
+            export CXX="clang++ -arch arm64"
             export ARCH_FLAGS="-arch arm64"
           fi
-          
+
+          # 确保 pyenv 使用正确的架构编译 Python
+          export PYTHON_CONFIGURE_OPTS="--enable-shared $ARCH_FLAGS"
+
           pyenv install ${{ env.PYTHON_VERSION }} --verbose
           pyenv global ${{ env.PYTHON_VERSION }}
           echo "PATH=$HOME/.pyenv/shims:$PATH" >> $GITHUB_ENV
-          
+
           python -m pip install --upgrade pip
           pip install uv --no-cache-dir
           uv venv .venv --python=${{ env.PYTHON_VERSION }}
           source .venv/bin/activate
           uv pip install --no-cache-dir -r requirements.txt pyinstaller
-          
-          
 
       - name: Build Executable (${{ matrix.arch }})
         run: |
@@ -55,10 +58,11 @@ jobs:
           pyinstaller -F -n start_macos_${{ matrix.arch }} \
             --paths=./sdk \
             --hidden-import='pkg_resources' \
-            --add-data="sdk/.env:." \
             main.py
-          
-          # 确保文件存在
+
+          # 检查二进制文件的架构
+          file "dist/start_macos_${{ matrix.arch }}"
+
           if [ ! -f "dist/start_macos_${{ matrix.arch }}" ]; then
             echo "Error: Binary not built!"
             ls -la dist/
@@ -105,18 +109,25 @@ jobs:
       - name: Create Universal Binary
         run: |
           mkdir -p dist
-          
+
+          # 检查二进制文件的架构
+          echo "Checking architectures:"
+          file "artifacts/macos-x86_64-build/start_macos_x86_64"
+          file "artifacts/macos-arm64-build/start_macos_arm64"
+
           # 合并二进制
           lipo -create \
             artifacts/macos-x86_64-build/start_macos_x86_64 \
             artifacts/macos-arm64-build/start_macos_arm64 \
             -output dist/start_macos_universal
-        
-          
+
+          # 复制环境文件
+          cp artifacts/macos-x86_64-build/.env dist/
+
           # 验证结果
           file dist/start_macos_universal
           lipo -archs dist/start_macos_universal
-          
+
           # 打包
           cd dist && zip -r ../macos_universal.zip ./*
 
