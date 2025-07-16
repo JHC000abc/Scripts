@@ -1,0 +1,16 @@
+name: Daily Python Script
+
+on:
+  schedule:
+    # 每天UTC时间0点执行（北京时间8点）
+    - cron: '0 0 * * *'
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  run-script:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: run scripts
+        run: cd scripts &&./sign_jd >> sign.log 2>&1
