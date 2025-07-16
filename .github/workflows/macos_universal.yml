@@ -41,17 +41,25 @@ jobs:
             export CFLAGS="-arch x86_64"
             export LDFLAGS="-arch x86_64"
             export PYTHON_CONFIGURE_OPTS="--enable-shared"
+            pyenv install ${{ env.PYTHON_VERSION }} --verbose --force
           else
-            # 交叉编译 arm64
+            # 为交叉编译 arm64 安装本机 x86_64 Python
             export CC="clang"
             export CXX="clang++"
+            export CFLAGS="-arch x86_64"
+            export LDFLAGS="-arch x86_64"
+            export PYTHON_CONFIGURE_OPTS="--enable-shared"
+            pyenv install ${{ env.PYTHON_VERSION }}-build-python --verbose --force
+            BUILD_PYTHON_PATH="$HOME/.pyenv/versions/${{ env.PYTHON_VERSION }}-build-python/bin/python3"
+
+            # 交叉编译 arm64
             export CFLAGS="-arch arm64"
             export LDFLAGS="-arch arm64"
-            export PYTHON_CONFIGURE_OPTS="--enable-shared --host=aarch64-apple-darwin --build=x86_64-apple-darwin"
+            export PYTHON_CONFIGURE_OPTS="--enable-shared --host=aarch64-apple-darwin --build=x86_64-apple-darwin --with-build-python=$BUILD_PYTHON_PATH"
+            pyenv install ${{ env.PYTHON_VERSION }} --verbose --force
           fi
 
-          # 安装 Python
-          pyenv install ${{ env.PYTHON_VERSION }} --verbose --force
+          # 设置 pyenv 全局版本
           pyenv global ${{ env.PYTHON_VERSION }}
           echo "PATH=$HOME/.pyenv/shims:$PATH" >> $GITHUB_ENV
 
