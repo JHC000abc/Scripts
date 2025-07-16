@@ -64,7 +64,7 @@ jobs:
           
           python -m pip install --upgrade pip
           pip install --no-cache-dir uv
-          uv venv --python=3.9.9
+          uv venv --python=$PYTHON_VERSION
           source .venv/bin/activate
           
           echo "当前Python路径: $(which python)"
