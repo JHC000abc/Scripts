@@ -258,7 +258,7 @@ class Online(object):
         if 'json-api/v1' in url:
             bucket = tmp_list[5]
             key = '/'.join(tmp_list[6:])
-        elif tmp_list[2] in ['bd.bcebos.com', 'bj.bcebos.com', 'hkg.bcebos.com']:
+        elif tmp_list[2] in ['bd.bcebos.com', 'bj.bcebos.com', 'hkg.bcebos.com', 'cdn.bcebos.com']:
             bucket = tmp_list[3]
             key = '/'.join(tmp_list[4:])
         else:
@@ -363,7 +363,6 @@ class BosOnline(Online):
         url = 'https://test.baidu.com/collection/api/getBosStsCredential'
         status, response = self.net.requests(url=url, data=params)
         response.encoding = "utf-8"
-        # print(response.text)
         if status:
             data = response.json()
             result = data["result"]

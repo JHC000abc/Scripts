@@ -11,6 +11,7 @@ import json
 import cv2 as cv
 import numpy as np
 import copy
+from io import BytesIO
 import PIL.JpegImagePlugin
 from PIL import ImageFont, Image, ImageDraw
 from sdk.utils.util_file import FileProcess
@@ -450,6 +451,59 @@ class MarkProcess(object):
             img = cv.convertScaleAbs(img, contrast, contrast * 10)
 
         return img
+
+    def get_img_date(self, file):
+        """
+
+        :param img_file:
+        :return:
+        """
+        image_file = open(file, 'rb')
+        image_data = BytesIO(image_file.read())
+        image_file.close()
+        return image_data
+
+    def merge_images(self, files, save_file, col=1):
+        """
+
+        :param files:
+        :param save_file:
+        :param mode:
+        :return:
+        """
+        if col <= 0:
+            col = 1
+        if len(files) <= 1:
+            raise ValueError("files len must > 1")
+        images = [Image.open(img_file) for img_file in files]
+        widths, heights = zip(*(img.size for img in images))
+
+        total_width = sum(widths)
+        max_width = max(widths)
+        max_height = max(heights)
+        _col = len(files) / col
+        _col = int(_col) if _col == int(_col) else int(_col) + 1
+        new_total_width = col * max_width
+        new_total_height = _col * max_height
+        if total_width < new_total_width:
+            new_total_width = total_width
+            col = len(images)
+        new_img = Image.new('RGB', (new_total_width, new_total_height))
+        x_offset = 0
+        y_offset = 0
+        for index, img in enumerate(images, 1):
+            new_img.paste(img, (x_offset, y_offset))
+            if col != 1:
+                x_offset += img.width
+
+            if index % col == 0:
+                if col != 1:
+                    y_offset += img.height
+                    x_offset = 0
+                else:
+                    y_offset += img.height
+
+        new_img.save(save_file)
 
 
 if __name__ == '__main__':

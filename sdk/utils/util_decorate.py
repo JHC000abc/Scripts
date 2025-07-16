@@ -296,7 +296,7 @@ def retry(**params):
                     # print("重试:{}".format(_retry - retry))
                     if retry == 0:
                         # raise e  # 如果重试次数用尽，则抛出异常
-                        print(traceback.format_exc())
+                        # print(traceback.format_exc())
                         return flag, result
                 finally:
                     time.sleep(random.randint(1, sleep))  # 重试间隔随机等待

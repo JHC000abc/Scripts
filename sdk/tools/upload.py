@@ -11,7 +11,7 @@ import os
 from datetime import datetime
 from sdk.temp.temp_supports import IsSolution, DM
 from sdk.utils.util_class import PathParser
-from sdk.utils.util_bos import BosAkSk
+from sdk.utils.util_bos import BosOnline
 from sdk.utils.util_encrypt import EncryptProcess
 
 
@@ -28,7 +28,7 @@ class Solution(IsSolution):
         super(Solution, self).__init__()
         self.__dict__.update({k: v for k, v in [
             i for i in locals().values() if isinstance(i, dict)][0].items()})
-        self.bos = BosAkSk()
+        self.bos = BosOnline()
         self.ep = EncryptProcess()
         DM.callback = self.callback
 
