@@ -29,31 +29,33 @@ jobs:
 
       - name: Install Python (${{ matrix.arch }})
         run: |
-          # 清理可能干扰的环境变量
+          # 清理环境变量
           unset PYTHONPATH
           unset PYTHONHOME
 
-          # 设置通用编译选项
-          export PYTHON_CONFIGURE_OPTS="--enable-shared"
-          export PYTHON_CFLAGS="-O2"
-
-          if [ "${{ matrix.arch }}" = "x86_64" ]; then
-            # 原生编译x86_64
-            export CC="clang"
-            export CXX="clang++"
-            export ARCH_FLAGS="-arch x86_64"
-          else
-            # 交叉编译arm64
-            export CC="clang"
-            export CXX="clang++"
-            export ARCH_FLAGS="-arch arm64"
-            export PYTHON_CONFIGURE_OPTS="$PYTHON_CONFIGURE_OPTS --build=x86_64-apple-darwin --host=arm64-apple-darwin"
+          # 首先安装x86_64版本作为构建Python
+          if [ "${{ matrix.arch }}" = "arm64" ]; then
+            echo "先安装x86_64版本作为构建Python..."
+            pyenv install ${{ env.PYTHON_VERSION }} --verbose --force
+            export BUILD_PYTHON_PATH=$(pyenv prefix ${{ env.PYTHON_VERSION }})/bin/python
           fi
 
-          export CFLAGS="$ARCH_FLAGS $CFLAGS"
-          export LDFLAGS="$ARCH_FLAGS $LDFLAGS"
+          # 设置编译选项
+          if [ "${{ matrix.arch }}" = "x86_64" ]; then
+            export CC="clang"
+            export CXX="clang++"
+            export CFLAGS="-arch x86_64"
+            export LDFLAGS="-arch x86_64"
+            export PYTHON_CONFIGURE_OPTS="--enable-shared"
+          else
+            export CC="clang"
+            export CXX="clang++"
+            export CFLAGS="-arch arm64"
+            export LDFLAGS="-arch arm64"
+            export PYTHON_CONFIGURE_OPTS="--enable-shared --with-build-python=$BUILD_PYTHON_PATH --host=arm64-apple-darwin"
+          fi
 
-          # 强制重新编译
+          # 安装目标Python
           pyenv install ${{ env.PYTHON_VERSION }} --verbose --force
           pyenv global ${{ env.PYTHON_VERSION }}
           echo "PATH=$HOME/.pyenv/shims:$PATH" >> $GITHUB_ENV
