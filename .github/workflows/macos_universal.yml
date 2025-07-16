@@ -33,25 +33,41 @@ jobs:
           unset PYTHONPATH
           unset PYTHONHOME
 
+          # 设置通用编译选项
+          export PYTHON_CONFIGURE_OPTS="--enable-shared"
+          export PYTHON_CFLAGS="-O2"
+
           if [ "${{ matrix.arch }}" = "x86_64" ]; then
-            export CC="clang -arch x86_64"
-            export CXX="clang++ -arch x86_64"
-            export CFLAGS="-arch x86_64"
-            export LDFLAGS="-arch x86_64"
+            # 原生编译x86_64
+            export CC="clang"
+            export CXX="clang++"
+            export ARCH_FLAGS="-arch x86_64"
           else
-            export CC="clang -arch arm64"
-            export CXX="clang++ -arch arm64"
-            export CFLAGS="-arch arm64"
-            export LDFLAGS="-arch arm64"
+            # 交叉编译arm64
+            export CC="clang"
+            export CXX="clang++"
+            export ARCH_FLAGS="-arch arm64"
+            export PYTHON_CONFIGURE_OPTS="$PYTHON_CONFIGURE_OPTS --build=x86_64-apple-darwin --host=arm64-apple-darwin"
           fi
 
-          # 设置 Python 编译选项（不要包含 -arch）
-          export PYTHON_CONFIGURE_OPTS="--enable-shared"
+          export CFLAGS="$ARCH_FLAGS $CFLAGS"
+          export LDFLAGS="$ARCH_FLAGS $LDFLAGS"
 
           # 强制重新编译
           pyenv install ${{ env.PYTHON_VERSION }} --verbose --force
           pyenv global ${{ env.PYTHON_VERSION }}
           echo "PATH=$HOME/.pyenv/shims:$PATH" >> $GITHUB_ENV
+
+          # 验证Python架构
+          echo "验证Python架构:"
+          python -c "import platform; print('当前Python架构:', platform.machine())"
+          if [ "${{ matrix.arch }}" = "x86_64" ] && ! python -c "import platform; print(platform.machine())" | grep -q "x86_64"; then
+            echo "错误: Python不是x86_64架构!"
+            exit 1
+          elif [ "${{ matrix.arch }}" = "arm64" ] && ! python -c "import platform; print(platform.machine())" | grep -q "arm64"; then
+            echo "错误: Python不是arm64架构!"
+            exit 1
+          fi
 
           python -m pip install --upgrade pip
           pip install uv --no-cache-dir
@@ -62,23 +78,32 @@ jobs:
       - name: Build Executable (${{ matrix.arch }})
         run: |
           source .venv/bin/activate
+          
+          # 设置PyInstaller架构参数
+          if [ "${{ matrix.arch }}" = "x86_64" ]; then
+            export PYINSTALLER_ARCH="-arch x86_64"
+          else
+            export PYINSTALLER_ARCH="-arch arm64"
+          fi
+
           pyinstaller -F -n start_macos_${{ matrix.arch }} \
             --paths=./sdk \
             --hidden-import='pkg_resources' \
+            $PYINSTALLER_ARCH \
             main.py
 
-          # 检查二进制文件的架构
+          # 严格检查二进制架构
           file "dist/start_macos_${{ matrix.arch }}"
-
-          if [ ! -f "dist/start_macos_${{ matrix.arch }}" ]; then
-            echo "Error: Binary not built!"
-            ls -la dist/
+          if [ "${{ matrix.arch }}" = "x86_64" ] && ! file "dist/start_macos_${{ matrix.arch }}" | grep -q "x86_64"; then
+            echo "错误: 二进制不是x86_64架构!"
+            exit 1
+          elif [ "${{ matrix.arch }}" = "arm64" ] && ! file "dist/start_macos_${{ matrix.arch }}" | grep -q "arm64"; then
+            echo "错误: 二进制不是arm64架构!"
             exit 1
           fi
 
       - name: Prepare Artifact
         run: |
-          # 创建标准化的artifact目录结构
           mkdir -p artifact_${{ matrix.arch }}
           cp dist/start_macos_${{ matrix.arch }} artifact_${{ matrix.arch }}/
           cp sdk/.env artifact_${{ matrix.arch }}/
@@ -103,24 +128,24 @@ jobs:
 
       - name: Verify Artifacts
         run: |
-          echo "Artifacts directory structure:"
+          echo "Artifacts目录结构:"
           find artifacts -type f
           
-          # 检查二进制文件是否存在
+          # 检查二进制文件架构
+          echo "x86_64二进制架构:"
+          file "artifacts/macos-x86_64-build/start_macos_x86_64"
+          echo "arm64二进制架构:"
+          file "artifacts/macos-arm64-build/start_macos_arm64"
+          
           if [ ! -f "artifacts/macos-x86_64-build/start_macos_x86_64" ] || 
              [ ! -f "artifacts/macos-arm64-build/start_macos_arm64" ]; then
-            echo "Error: Required binary files missing!"
+            echo "错误: 缺少必要的二进制文件!"
             exit 1
           fi
 
       - name: Create Universal Binary
         run: |
           mkdir -p dist
-
-          # 检查二进制文件的架构
-          echo "Checking architectures:"
-          file "artifacts/macos-x86_64-build/start_macos_x86_64"
-          file "artifacts/macos-arm64-build/start_macos_arm64"
 
           # 合并二进制
           lipo -create \
@@ -131,9 +156,16 @@ jobs:
           # 复制环境文件
           cp artifacts/macos-x86_64-build/.env dist/
 
-          # 验证结果
+          # 验证通用二进制
+          echo "通用二进制架构:"
           file dist/start_macos_universal
           lipo -archs dist/start_macos_universal
+          
+          if ! lipo -archs dist/start_macos_universal | grep -q "x86_64" || 
+             ! lipo -archs dist/start_macos_universal | grep -q "arm64"; then
+            echo "错误: 通用二进制缺少架构!"
+            exit 1
+          fi
 
           # 打包
           cd dist && zip -r ../macos_universal.zip ./*
@@ -152,13 +184,13 @@ jobs:
           tag_name: v$(date +%Y.%m.%d)
           name: Universal macOS Build ($(date +%Y-%m-%d))
           body: |
-            ### Supported Architectures
+            ### 支持的架构
             - Intel (x86_64)
             - Apple Silicon (arm64)
             - Universal 2
             
-            ### Build Info
-            - Python: ${{ env.PYTHON_VERSION }}
-            - Build Date: $(date -u)
+            ### 构建信息
+            - Python版本: ${{ env.PYTHON_VERSION }}
+            - 构建日期: $(date -u)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
