@@ -14,34 +14,34 @@ jobs:
       matrix:
         arch: [x86_64, arm64]
     env:
-      PYTHON_VERSION: "3.12.3"  # 可修改为任何需要的版本
+      PYTHON_VERSION: "3.12.3"
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install pyenv and dependencies (${{ matrix.arch }})
+      - name: Install system dependencies
         run: |
-          # 安装基础工具链
           brew update
           brew install pyenv openssl@3 libffi pkg-config make zlib sqlite
-          
-          # 架构特定配置
+          echo "LDFLAGS=-L$(brew --prefix openssl@3)/lib -L$(brew --prefix libffi)/lib -L$(brew --prefix zlib)/lib" >> $GITHUB_ENV
+          echo "CPPFLAGS=-I$(brew --prefix openssl@3)/include -I$(brew --prefix libffi)/include -I$(brew --prefix zlib)/include" >> $GITHUB_ENV
+          echo "PKG_CONFIG_PATH=$(brew --prefix openssl@3)/lib/pkgconfig:$(brew --prefix libffi)/lib/pkgconfig" >> $GITHUB_ENV
+
+      - name: Install Python (${{ matrix.arch }})
+        run: |
+          # 设置架构特定的编译选项
           if [ "${{ matrix.arch }}" = "x86_64" ]; then
-            echo "强制 x86_64 编译环境"
             export CC="clang -arch x86_64"
             export CXX="clang++ -arch x86_64"
+            export ARCH_FLAGS="-arch x86_64"
+          else
+            export ARCH_FLAGS="-arch arm64"
           fi
           
-          # 设置编译环境
-          export LDFLAGS="-L$(brew --prefix openssl@3)/lib -L$(brew --prefix libffi)/lib -L$(brew --prefix zlib)/lib"
-          export CPPFLAGS="-I$(brew --prefix openssl@3)/include -I$(brew --prefix libffi)/include -I$(brew --prefix zlib)/include"
-          export PKG_CONFIG_PATH="$(brew --prefix openssl@3)/lib/pkgconfig:$(brew --prefix libffi)/lib/pkgconfig"
-          
-          # 安装指定 Python 版本
+          # 安装指定Python版本
           pyenv install ${{ env.PYTHON_VERSION }} --verbose
           pyenv global ${{ env.PYTHON_VERSION }}
           echo "PATH=$HOME/.pyenv/shims:$PATH" >> $GITHUB_ENV
-          echo "PYENV_ROOT=$HOME/.pyenv" >> $GITHUB_ENV
 
       - name: Verify Python environment
         run: |
@@ -53,9 +53,6 @@ jobs:
           echo "=== Architecture ==="
           arch
           uname -m
-          
-          echo "=== pip List ==="
-          pip list
 
       - name: Setup build environment
         run: |
@@ -74,7 +71,7 @@ jobs:
             --add-data="sdk/.env:." \
             main.py
           
-          # 验证二进制
+          # 验证二进制架构
           file dist/start_macos_${{ matrix.arch }}
           lipo -archs dist/start_macos_${{ matrix.arch }} || true
 
