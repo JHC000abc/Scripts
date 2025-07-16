@@ -94,7 +94,7 @@ jobs:
           files: |
             macos-arm64.zip
           tag_name: v1.0.0-arm64
-          name: Release v1.0.0 ARM64
+          name: Release v1.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
