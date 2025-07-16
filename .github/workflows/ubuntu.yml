@@ -93,7 +93,7 @@ jobs:
           cd $GITHUB_WORKSPACE
           pwd
           ls -al
-#          cp sdk/.env dist/.env
+          cp sdk/.env dist/.env
           ls -al dist/
           tar -zcvf linux.zip -C dist .
           ls -la linux.zip

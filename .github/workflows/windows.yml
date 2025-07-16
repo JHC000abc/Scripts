@@ -38,7 +38,7 @@ jobs:
           
           uv pip install --no-cache-dir -r requirements.txt
           pyinstaller -F -n start_windows --paths=./sdk main.py
-#          copy sdk\.env dist\
+          copy sdk\.env dist\
 
       - name: Create verified zip
         shell: pwsh
@@ -46,7 +46,7 @@ jobs:
           $zipPath = "${{ github.workspace }}\windows.zip"
           $files = @(
             "${{ github.workspace }}\dist\start_windows.exe",
-#            "${{ github.workspace }}\dist\.env"
+            "${{ github.workspace }}\dist\.env"
           )
 
           Compress-Archive -Path $files -DestinationPath $zipPath -Force
