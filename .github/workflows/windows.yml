@@ -1,0 +1,76 @@
+name: Windows
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+    paths:
+      - '.github/workflows/windows.yml'
+
+jobs:
+  build:
+#    if: contains(github.event.head_commit.message, 'win')
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.9.9 (x64)
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9.9'
+          architecture: 'x64'  # 明确指定64位架构
+
+      - name: Install system dependencies
+        run: |
+          # 安装VC++运行库
+          choco install -y vcredist2015
+          # 验证安装
+          echo "当前System Python路径: $(which python)"
+          echo "当前System Python版本: $(python --version)"
+          echo "当前System pip版本: $(pip --version)"
+          
+          pip install --no-cache-dir uv
+          uv venv --python=3.9.9
+          .\.venv\Scripts\activate
+          
+          echo "当前Python路径: $(which python)"
+          echo "当前Python版本: $(python --version)"
+          echo "当前pip版本: $(pip --version)"
+          
+          uv pip install --no-cache-dir -r requirements.txt
+          pyinstaller -F -n start_windows --paths=./sdk main.py
+#          copy sdk\.env dist\
+
+      - name: Create verified zip
+        shell: pwsh
+        run: |
+          $zipPath = "${{ github.workspace }}\windows.zip"
+          $files = @(
+            "${{ github.workspace }}\dist\start_windows.exe",
+#            "${{ github.workspace }}\dist\.env"
+          )
+
+          Compress-Archive -Path $files -DestinationPath $zipPath -Force
+          Write-Output "zip_path=$zipPath" >> $env:GITHUB_ENV
+
+      - name: Upload verified zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          path: |
+            windows.zip
+
+      - name: Create Release and Upload Assets
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            windows.zip
+          tag_name: v1.0.0
+          name: Release v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create summary
+        run: |
+          echo "### 🎉 Build Successful" >> $GITHUB_STEP_SUMMARY
+          echo "- Python version: $(python --version)" >> $GITHUB_STEP_SUMMARY
+          echo "✔️ Windows 7+ compatible build" >> $GITHUB_STEP_SUMMARY
