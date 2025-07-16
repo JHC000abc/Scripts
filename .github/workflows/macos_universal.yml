@@ -49,8 +49,10 @@ jobs:
             export CFLAGS="-arch x86_64"
             export LDFLAGS="-arch x86_64"
             export PYTHON_CONFIGURE_OPTS="--enable-shared"
-            pyenv install ${{ env.PYTHON_VERSION }}-build-python --verbose --force
-            BUILD_PYTHON_PATH="$HOME/.pyenv/versions/${{ env.PYTHON_VERSION }}-build-python/bin/python3"
+            pyenv install ${{ env.PYTHON_VERSION }} --verbose --force --prefix $HOME/.pyenv/versions/build-python
+
+            # 获取本机 Python 路径
+            BUILD_PYTHON_PATH="$HOME/.pyenv/versions/build-python/bin/python3"
 
             # 交叉编译 arm64
             export CFLAGS="-arch arm64"
