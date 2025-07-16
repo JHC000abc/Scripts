@@ -41,22 +41,6 @@ jobs:
           pyenv global ${{ env.PYTHON_VERSION }}
           echo "PATH=$HOME/.pyenv/shims:$PATH" >> $GITHUB_ENV
 
-      - name: Verify Python environment
-        run: |
-          python --version
-          which python
-          file $(which python)
-          arch
-          uname -m
-
-      - name: Setup build environment
-        run: |
-          python -m pip install --upgrade pip
-          pip install uv --no-cache-dir
-          uv venv .venv --python=${{ env.PYTHON_VERSION }}
-          source .venv/bin/activate
-          uv pip install --no-cache-dir -r requirements.txt pyinstaller
-
       - name: Build Executable (${{ matrix.arch }})
         run: |
           source .venv/bin/activate
@@ -72,17 +56,19 @@ jobs:
             ls -la dist/
             exit 1
           fi
-          
-          file dist/start_macos_${{ matrix.arch }}
-          lipo -archs dist/start_macos_${{ matrix.arch }} || true
+
+      - name: Prepare Artifact
+        run: |
+          # 创建标准化的artifact目录结构
+          mkdir -p artifact_${{ matrix.arch }}
+          cp dist/start_macos_${{ matrix.arch }} artifact_${{ matrix.arch }}/
+          cp sdk/.env artifact_${{ matrix.arch }}/
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: macos-${{ matrix.arch }}-build
-          path: |
-            dist/start_macos_${{ matrix.arch }}
-            sdk/.env
+          path: artifact_${{ matrix.arch }}
           retention-days: 3
 
   create_universal:
@@ -94,36 +80,37 @@ jobs:
         with:
           path: artifacts
           pattern: macos-*-build
-          merge-multiple: false  # 关键修改：禁用自动合并
+          merge-multiple: false
 
-      - name: Verify downloaded artifacts
+      - name: Verify Artifacts
         run: |
-          echo "Artifacts directory contents:"
-          ls -R artifacts
+          echo "Artifacts directory structure:"
+          find artifacts -type f
           
-          # 检查文件是否存在
-          if [ ! -f "artifacts/macos-x86_64-build/start_macos_x86_64" ] || [ ! -f "artifacts/macos-arm64-build/start_macos_arm64" ]; then
-            echo "Error: Missing architecture binaries!"
+          # 检查二进制文件是否存在
+          if [ ! -f "artifacts/macos-x86_64-build/start_macos_x86_64" ] || 
+             [ ! -f "artifacts/macos-arm64-build/start_macos_arm64" ] ||
+             [ ! -f "artifacts/macos-x86_64-build/.env" ]; then
+            echo "Error: Required files missing!"
             exit 1
           fi
 
       - name: Create Universal Binary
         run: |
-          # 确保目录结构正确
           mkdir -p dist
           
-          # 使用完整路径合并二进制
+          # 合并二进制
           lipo -create \
-            "artifacts/macos-x86_64-build/start_macos_x86_64" \
-            "artifacts/macos-arm64-build/start_macos_arm64" \
+            artifacts/macos-x86_64-build/start_macos_x86_64 \
+            artifacts/macos-arm64-build/start_macos_arm64 \
             -output dist/start_macos_universal
-          
-          # 验证合并结果
-          file dist/start_macos_universal
-          lipo -archs dist/start_macos_universal
           
           # 复制环境文件
           cp artifacts/macos-x86_64-build/.env dist/
+          
+          # 验证结果
+          file dist/start_macos_universal
+          lipo -archs dist/start_macos_universal
           
           # 打包
           cd dist && zip -r ../macos_universal.zip ./*
