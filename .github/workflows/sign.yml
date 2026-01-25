@@ -19,3 +19,4 @@ jobs:
         run: |
           cd scripts &&./sign_jd >> sign.log 2>&1
           cat sign.log
+
