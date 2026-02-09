@@ -3,7 +3,7 @@ name: Daily Python Script
 on:
   schedule:
     # 每天UTC时间0点执行（北京时间8点）
-    - cron: '0 0 * * *'
+    - cron: '15 0 * * *'
   workflow_dispatch:  # 允许手动触发
   push:
     branches: [ main,master ]
@@ -17,6 +17,6 @@ jobs:
       - name: run scripts
         shell: bash -l {0}
         run: |
-          cd scripts &&./sign_jd >> sign.log 2>&1
+          cd scripts && chmod +x sign_jd &&./sign_jd >> sign.log 2>&1
           cat sign.log
 
