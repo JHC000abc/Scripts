@@ -19,4 +19,5 @@ jobs:
         run: |
           cd scripts && chmod +x sign_jd &&./sign_jd >> sign.log 2>&1
           cat sign.log
+          
 
